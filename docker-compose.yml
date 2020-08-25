@@ -1,0 +1,81 @@
+version: '3.5'
+
+networks: 
+  liteflix:
+    name: liteflix
+
+services:
+  liteflix_webserver:
+    image: nginx:1.18.0-alpine
+    container_name: liteflix_webserver
+    ports: 
+      - "32882:80"
+      - "33003:443"
+    volumes: 
+      - ./src:/var/www
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/certificates:/etc/nginx/ssl
+    depends_on:
+      - liteflix_php
+      - liteflix_db
+    networks: 
+      - liteflix
+
+  liteflix_db:
+    image: mysql:8.0.20
+    container_name: liteflix_db
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "33065:3306"
+    environment: 
+      MYSQL_DATABASE: liteflix
+      MYSQL_USER: liteflix
+      MYSQL_PASSWORD: liteflix
+      MYSQL_ROOT_PASSWORD: root
+      SERVICE_TAG: dev
+      SERVICE_NAME: liteflix_db
+    volumes: 
+        - ./db:/var/lib/mysql
+    user: 1000:1000
+    networks: 
+      - liteflix
+
+  liteflix_php:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: liteflix_php
+    volumes:
+      - ./src:/var/www
+    working_dir: /var/www
+    user: 1000:1000
+    networks: 
+      - liteflix
+
+  liteflix_composer:
+    image: composer:latest
+    container_name: liteflix_composer
+    volumes:
+      - ./src:/var/www
+    working_dir: /var/www
+    depends_on:
+      - liteflix_php
+    user: 1000:1000
+    networks:
+      - liteflix
+
+  liteflix_artisan:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: liteflix_artisan
+    volumes:
+      - ./src:/var/www
+    depends_on:
+      - liteflix_db
+    working_dir: /var/www
+    entrypoint: ['php', '/var/www/artisan']
+    user: 1000:1000
+    networks:
+      - liteflix
